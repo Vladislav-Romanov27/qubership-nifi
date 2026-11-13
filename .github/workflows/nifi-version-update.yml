@@ -1,9 +1,12 @@
 name: Apache NiFi Version Update
 run-name: "Apache NiFi version update. On ${{ github.event_name }}"
 on:
-  workflow_dispatch: null
-  schedule:
-    - cron: "0 22 * * 6" # every Sunday 01:00 Moscow time (Saturday at 22:00 UTC)
+  workflow_dispatch:
+    inputs:
+      nifi-version:
+        description: "Target Apache NiFi version, for example 2.12.0. Leave empty to pick the newest qualifying version."
+        required: false
+        type: string
 
 permissions: {}
 
@@ -34,6 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MIN_AGE_DAYS: "7"
+          TARGET_VERSION: ${{ inputs.nifi-version }}
         run: bash .github/workflows/sh/nifi-version-check.sh
 
   # The agent runs here with a read-only token: the Maven build needs one for GitHub Packages.
@@ -83,6 +87,16 @@ jobs:
           REPORT_FILE: upgrade-temp-data/pr-body.md
         run: bash .github/workflows/sh/nifi-upgrade-agent.sh
 
+      # Runs even when the agent fails, because those are the runs the files help to debug.
+      - name: Upload upgrade-temp-data
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upgrade-temp-data
+          path: upgrade-temp-data/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Save changes as a patch
         run: |
           set -euo pipefail
@@ -93,8 +107,16 @@ jobs:
             echo "::error::The agent made no changes for Apache NiFi $NIFI_VERSION."
             exit 1
           fi
+          # The upgrade changes only text files, so a binary file in the change is rejected.
+          # git diff --numstat prints "-" instead of line counts for a binary file.
+          BINARY_FILES=$(git diff --cached --numstat | awk -F '\t' '$1 == "-" || $2 == "-" { print $3 }')
+          if [ -n "$BINARY_FILES" ]; then
+            echo "::error::The agent changed binary files, which the upgrade does not allow:"
+            echo "$BINARY_FILES"
+            exit 1
+          fi
           git diff --cached --stat
-          git diff --cached --binary > "$OUT_DIR/changes.patch"
+          git diff --cached > "$OUT_DIR/changes.patch"
           if [ -s upgrade-temp-data/pr-body.md ]; then
             cp upgrade-temp-data/pr-body.md "$OUT_DIR/pr-body.md"
           fi
@@ -133,7 +155,16 @@ jobs:
         id: prepare
         run: |
           set -euo pipefail
-          git apply "$RUNNER_TEMP/nifi-upgrade/changes.patch"
+          PATCH_FILE="$RUNNER_TEMP/nifi-upgrade/changes.patch"
+          # This job can push, so it checks the patch again rather than trusting the update job.
+          # git apply --numstat prints "-" instead of line counts for a binary file.
+          BINARY_FILES=$(git apply --numstat "$PATCH_FILE" | awk -F '\t' '$1 == "-" || $2 == "-" { print $3 }')
+          if [ -n "$BINARY_FILES" ]; then
+            echo "::error::The patch changes binary files, which the upgrade does not allow:"
+            echo "$BINARY_FILES"
+            exit 1
+          fi
+          git apply "$PATCH_FILE"
           BODY_FILE="$RUNNER_TEMP/nifi-upgrade/pr-body.md"
           # Without the report the agent may have stopped partway, so the pull request opens as a draft.
           DRAFT=false
@@ -141,6 +172,9 @@ jobs:
             echo "The agent did not write a report. Review the changes against nifi-upgrade-skill manually." > "$BODY_FILE"
             DRAFT=true
           fi
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          printf '\n---\n\nThe files of this run are in the upgrade-temp-data artifact of [workflow run %s](%s).\n' \
+            "$GITHUB_RUN_ID" "$RUN_URL" >> "$BODY_FILE"
           echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
           echo "model=$(jq -r '.model' .opencode/opencode.json)" >> "$GITHUB_OUTPUT"
 

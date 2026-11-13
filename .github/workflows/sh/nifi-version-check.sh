@@ -8,7 +8,12 @@
 # MIN_AGE_DAYS ago. The highest qualifying version is chosen. It is skipped when a pull
 # request from its branch exists in any state: closing one without a merge skips the version.
 #
+# When TARGET_VERSION is set, that version is used instead of the newest qualifying one.
+# It must be X.Y.Z with the current major version, be newer than the current version, and
+# have a tag on Docker Hub; otherwise the script fails. MIN_AGE_DAYS does not apply to it.
+#
 # Environment:
+#   TARGET_VERSION     version to upgrade to; the newest qualifying version when unset or empty
 #   CURRENT_VERSION    current version; read from nifi.version in pom.xml when unset
 #   MIN_AGE_DAYS       minimum tag age in days, 7 by default
 #   GH_TOKEN           token for the GitHub CLI
@@ -83,6 +88,30 @@ select_version() {
         '
 }
 
+# Checks the requested version against the current one and prints {version, digest, pushed}
+# for its Docker Hub tag. Fails when the version does not qualify or has no tag.
+select_target_version() {
+    local current="$1" target="$2" tag
+    if [[ ! "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "::error::TARGET_VERSION must be X.Y.Z, found '$target'." >&2
+        return 1
+    fi
+    if [ "${target%%.*}" != "${current%%.*}" ]; then
+        echo "::error::Apache NiFi $target has a different major version than the current $current." >&2
+        return 1
+    fi
+    if [ "$(printf '%s\n%s\n' "$current" "$target" | sort -V | tail -n 1)" != "$target" ] \
+        || [ "$target" = "$current" ]; then
+        echo "::error::Apache NiFi $target is not newer than the current $current." >&2
+        return 1
+    fi
+    if ! tag=$(curl --fail --silent --show-error --retry 3 "${TAGS_URL%%\?*}/$target"); then
+        echo "::error::Cannot read the apache/nifi:$target tag from Docker Hub." >&2
+        return 1
+    fi
+    echo "$tag" | jq -c '{version: .name, digest: .digest, pushed: .tag_last_pushed}'
+}
+
 # Prints "#<number> (<state>)" for each pull request from the branch, in any state.
 find_pull_requests() {
     local branch="$1"
@@ -103,7 +132,11 @@ main() {
     fi
     echo "Current Apache NiFi version: $current"
 
-    result=$(fetch_tags | select_version "$current")
+    if [ -n "${TARGET_VERSION:-}" ]; then
+        result=$(select_target_version "$current" "$TARGET_VERSION")
+    else
+        result=$(fetch_tags | select_version "$current")
+    fi
     version=$(echo "$result" | jq -r '.version // ""')
     digest=$(echo "$result" | jq -r '.digest // ""')
     if [ -z "$version" ]; then

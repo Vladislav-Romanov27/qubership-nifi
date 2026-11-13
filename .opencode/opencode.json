@@ -1,15 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openai/gpt-6.1-sol",
-  "provider": {
-    "openai": {
-      "models": {
-        "gpt-6.1-sol": {
-          "options": {
-            "reasoningEffort": "medium"
-          }
-        }
-      }
-    }
-  }
+  "model": "opencode/deepseek-v4.1-flash-free"
 }
