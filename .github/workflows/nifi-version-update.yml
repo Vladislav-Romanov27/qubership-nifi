@@ -135,9 +135,13 @@ jobs:
           set -euo pipefail
           git apply "$RUNNER_TEMP/nifi-upgrade/changes.patch"
           BODY_FILE="$RUNNER_TEMP/nifi-upgrade/pr-body.md"
+          # Without the report the agent may have stopped partway, so the pull request opens as a draft.
+          DRAFT=false
           if [ ! -s "$BODY_FILE" ]; then
             echo "The agent did not write a report. Review the changes against nifi-upgrade-skill manually." > "$BODY_FILE"
+            DRAFT=true
           fi
+          echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
           echo "model=$(jq -r '.model' .opencode/opencode.json)" >> "$GITHUB_OUTPUT"
 
       - name: Create pull request
@@ -145,8 +149,9 @@ jobs:
         with:
           branch: ${{ env.BRANCH }}
           commit-message: |
-            chore(deps): update Apache NiFi to ${{ env.NIFI_VERSION }}
+            feat: upgrade nifi to ${{ env.NIFI_VERSION }}
 
             Assisted-by: opencode (${{ steps.prepare.outputs.model }})
-          title: "chore(deps): update Apache NiFi to ${{ env.NIFI_VERSION }}"
+          title: "feat: upgrade nifi to ${{ env.NIFI_VERSION }}"
           body-path: ${{ runner.temp }}/nifi-upgrade/pr-body.md
+          draft: ${{ steps.prepare.outputs.draft }}
