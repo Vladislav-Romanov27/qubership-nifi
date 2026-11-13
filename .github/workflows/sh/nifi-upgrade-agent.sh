@@ -8,7 +8,7 @@
 #   NIFI_VERSION       target Apache NiFi version, for example 2.13.0
 #   NIFI_DIGEST        digest of the apache/nifi:<NIFI_VERSION> image, sha256:<hex>
 #   REPORT_FILE        report path, upgrade-temp-data/pr-body.md by default
-#   ANTHROPIC_API_KEY  key for the anthropic provider of the model set in .opencode/opencode.json
+#   OPENAI_API_KEY     key for the openai provider of the model set in .opencode/opencode.json
 
 set -euo pipefail
 
