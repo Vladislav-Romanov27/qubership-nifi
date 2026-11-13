@@ -1,7 +1,7 @@
 name: Apache NiFi Version Update
 run-name: "Apache NiFi version update. On ${{ github.event_name }}"
 on:
-  workflow_dispatch:
+  workflow_dispatch: null
   schedule:
     - cron: "0 22 * * 6" # every Sunday 01:00 Moscow time (Saturday at 22:00 UTC)
 
