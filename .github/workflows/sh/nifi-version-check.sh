@@ -49,9 +49,11 @@ read_current_version() {
 fetch_tags() {
     local url="$TAGS_URL" page
     while [ -n "$url" ] && [ "$url" != "null" ]; do
-        page=$(curl --fail --silent --show-error --retry 3 "$url")
-        echo "$page" | jq -c '.results[]'
-        url=$(echo "$page" | jq -r '.next')
+        # The caller runs this function inside a command substitution, where set -e is off,
+        # so each failure has to return explicitly.
+        page=$(curl --fail --silent --show-error --retry 3 "$url") || return 1
+        echo "$page" | jq -c '.results[]' || return 1
+        url=$(echo "$page" | jq -r '.next') || return 1
     done
 }
 

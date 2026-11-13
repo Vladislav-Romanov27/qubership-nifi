@@ -7,7 +7,15 @@ description: Upgrades Apache NiFi to a target version. Updates scripts, configs,
 
 ## 1. Get versions
 
-- Ask the user for **target NiFi version** and **SHA256 hash** if not provided. Don't proceed without both.
+- Take the **target NiFi version** and its **SHA256 hash** from the `NIFI_VERSION` and `NIFI_DIGEST` environment
+  variables. The `check` job of `.github/workflows/nifi-version-update.yml` sets them, and the hash has the
+  `sha256:<hex>` form that `NIFI_VERSION_SHA256` in the Dockerfile uses.
+
+  ```bash
+  echo "$NIFI_VERSION $NIFI_DIGEST"
+  ```
+
+- When either variable is empty, as in a local run, ask the user for the missing value. Don't proceed without both.
 - Get current version from Dockerfile:
 
 ```bash
@@ -135,6 +143,10 @@ descriptor breaks import).
   `propertiesToRemoveWhenEmpty`.
 
 A property must be listed in exactly one of the two sections, never both.
+
+In a GitHub Actions run, where `GITHUB_ACTIONS` is `true`, nobody can answer, so don't ask. Build only
+`displayNameMapping`, and list every deleted property with its component under "Tasks for the reviewer" in the final
+report. The reviewer sorts each one into `propertiesAllowedToDelete` or `propertiesToRemoveWhenEmpty`.
 
 ```yaml
 propertiesAllowedToDelete:
