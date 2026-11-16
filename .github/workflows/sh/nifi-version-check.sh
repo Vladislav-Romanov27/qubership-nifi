@@ -76,13 +76,13 @@ select_version() {
             (.name | test("^[0-9]+[.][0-9]+[.][0-9]+$"))
             and .tag_last_pushed != null
             and .digest != null
-          ))
+        ))
         | map(. + {semver: (.name | semver)})
         | map(select(
             .semver[0] == $cur[0]
             and .semver > $cur
             and (.tag_last_pushed | sub("[.][0-9]+Z$"; "Z") | fromdateiso8601) <= $cutoff
-          ))
+        ))
         | max_by(.semver)
         | if . == null then {} else {version: .name, digest: .digest, pushed: .tag_last_pushed} end
         '
