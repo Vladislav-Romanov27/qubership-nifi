@@ -6,7 +6,8 @@
 # A version qualifies when its apache/nifi Docker Hub tag is X.Y.Z with the current
 # major version, is newer than the current version, and was pushed at least
 # MIN_AGE_DAYS ago. The highest qualifying version is chosen. It is skipped when a pull
-# request from its branch exists in any state: closing one without a merge skips the version.
+# request from its branch is open. TESTING ONLY: restore "--state all" in find_pull_requests before merging,
+# so that closing a pull request without a merge skips the version.
 #
 # When TARGET_VERSION is set, that version is used instead of the newest qualifying one.
 # It must be X.Y.Z with the current major version, be newer than the current version, and
@@ -112,14 +113,14 @@ select_target_version() {
     echo "$tag" | jq -c '{version: .name, digest: .digest, pushed: .tag_last_pushed}'
 }
 
-# Prints "#<number> (<state>)" for each pull request from the branch, in any state.
+# Prints "#<number> (<state>)" for each open pull request from the branch.
 find_pull_requests() {
     local branch="$1"
     local repo_args=()
     if [ -n "${GITHUB_REPOSITORY:-}" ]; then
         repo_args=(--repo "$GITHUB_REPOSITORY")
     fi
-    gh pr list "${repo_args[@]}" --head "$branch" --state all \
+    gh pr list "${repo_args[@]}" --head "$branch" --state open \
         --json number,state --jq '.[] | "#\(.number) (\(.state))"'
 }
 
@@ -149,7 +150,7 @@ main() {
     branch="feat/upgrade-nifi-to-$version"
     prs=$(find_pull_requests "$branch")
     if [ -n "$prs" ]; then
-        echo "Pull requests from $branch already exist, skipping the update:"
+        echo "Open pull requests from $branch exist, skipping the update:"
         echo "$prs"
         write_output "" "" ""
         return 0
