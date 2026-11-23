@@ -31,11 +31,10 @@ RUN_START_MS=$(($(date +%s) * 1000))
 
 mkdir -p "$(dirname "$REPORT_FILE")" "$(dirname "$SIGNATURE_FILE")"
 
-# Prints the AI agent signature in the qubership-ai-packages format, for example
-# "<sub>[robot face] deepseek-v4.1-flash-free in=105.9k cached=3927.2k out=21.6k usd=0.083</sub>", with k for
-# thousands. The model, and its variant as the reasoning effort, are those of the last response of the main
-# session. The totals cover every model response since RUN_START_MS in the opencode database, so subagents and
-# retries are counted too. Fails when the run has no model response, because the model is then unknown.
+# Prints the AI agent signature in the qubership-ai-packages format, with k for thousands in the token counts.
+# The model, and its variant as the reasoning effort, are those of the last response of the main session.
+# The totals cover every model response since RUN_START_MS in the opencode database, so subagents and retries
+# are counted too. Fails when the run has no model response, because the model is then unknown.
 write_signature() {
     local main totals
     main=$(opencode db --format json "
@@ -60,7 +59,7 @@ write_signature() {
             if . == 0 then "0"
             else ((log10 | floor) - 1) as $n
                 | if $n >= 0 then (. / pow(10; $n) | round) * pow(10; $n)
-                  else (. * pow(10; -$n) | round) / pow(10; -$n) end
+                    else (. * pow(10; -$n) | round) / pow(10; -$n) end
                 | tostring
             end;
         ($main[0] // empty) as $m
@@ -111,26 +110,29 @@ PROMPT=$(
 Upgrade Apache NiFi to version ${NIFI_VERSION} by following the nifi-upgrade-skill skill.
 Load it with the skill tool (@nifi-upgrade-skill) and run its steps in order.
 
-Inputs for step 1:
+Inputs for the "Get versions" step:
 - Target NiFi version: ${NIFI_VERSION}
 - SHA256 hash: ${NIFI_DIGEST}
 
 This run is non-interactive in GitHub Actions, and nobody can answer questions. Follow these rules:
 - Do not ask questions. Where the skill tells you to ask the user, make no change and record the item in the report.
-- In step 14, use ${QUBERSHIP_NIFI_VERSION} as the planned qubership-nifi release version.
+- In the "Generate releases notes" step, use ${QUBERSHIP_NIFI_VERSION} as the planned qubership-nifi release version.
 - Do not run git commit or git push, and do not create branches or pull requests. Leave the changes in the working tree.
-- Do not change your own instructions and tools, the CI that runs you, or the build tooling and repository
-    configuration: .github/, .codex/, .cursor/, .opencode/, .qubership/, .mvn/, agent-packages/, opencode.json,
-    opencode.jsonc, mvnw, mvnw.cmd, renovate.json, .gitattributes, .gitmodules, apm.yml, apm.lock.yaml, a .agents/
-    or .claude/ directory anywhere, and any AGENTS.md or CLAUDE.md, including variants such as AGENTS.override.md
-    and CLAUDE.local.md. The workflow rejects a change to any of them. Where the upgrade seems to need one,
-    record it under "Tasks for the reviewer" instead.
+- Docker is not available in this run. Do not run docker: the skill says what replaces each step that uses it.
+- Do not change your own instructions and tools, the CI that runs you, the build tooling, the configuration of
+    the security scanners and linters, or the repository configuration: .github/, .codex/, .opencode/, .qubership/,
+    .mvn/, agent-packages/, opencode.json, opencode.jsonc, mvnw, mvnw.cmd, renovate.json, .gitmodules, apm.yml,
+    apm.lock.yaml, .gitignore, .editorconfig, .trivyignore, .gitleaksignore, .prettierignore, a .agents/, .claude/,
+    or .cursor/ directory anywhere, a .gitattributes file anywhere, and any AGENTS.md or CLAUDE.md, including
+    variants such as AGENTS.override.md and CLAUDE.local.md. The workflow rejects a change to any of them. Where the
+    upgrade seems to need one, record it under "Tasks for the reviewer" instead.
 
 When you finish, write the final report in GitHub-flavored Markdown to ${REPORT_FILE}.
 The report becomes the pull request description. Start it with a one-paragraph summary, then include:
-- every Migration Guidance item classified as applied, not applicable, or user action required, as step 9 requires;
-- a "Tasks for the reviewer" section with the deleted properties from step 12, by section, for the reviewer to check,
-    and every item that needs user action.
+- every Migration Guidance item classified as applied, not applicable, or user action required, as the "Migration
+    guidance" step requires;
+- a "Tasks for the reviewer" section with the deleted properties from the "Resolve display-name renames" step,
+    by section, for the reviewer to check, and every item that needs user action.
 Do not list the changed files or their line counts: the pull request already shows them.
 Keep the report short: the summary is at most three sentences, and each item is one line. Give the result, not the
 process: do not describe the steps you ran, quote command output, or restate the skill. Leave out a section that has

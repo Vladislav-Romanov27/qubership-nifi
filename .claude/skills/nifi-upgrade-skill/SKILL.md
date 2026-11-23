@@ -5,10 +5,6 @@ description: Upgrades Apache NiFi to a target version. Updates scripts, configs,
 
 # NiFi Upgrade Skill
 
-Run every `mvn` command in this skill with `--batch-mode --no-transfer-progress -Dgpg.skip=true`. The build signs
-artifacts with GPG in the verify phase, so `mvn install` fails on a machine without a GPG key unless
-`-Dgpg.skip=true` is set.
-
 ## 1. Get versions
 
 - Take the **target NiFi version** and its **SHA256 hash** from the `NIFI_VERSION` and `NIFI_DIGEST` environment
@@ -26,6 +22,10 @@ sed -n "s/.*NIFI_VERSION='\([0-9.]*\)'.*/\1/p" ./Dockerfile | head -1
 ```
 
 ## 2. Fetch reference files
+
+When `CI` is `true`, the workflow has already fetched these files into `upgrade-temp-data/nifi-files-to-compare/`,
+and Docker is not available. Check that the `scripts/` and `config/` directories of both versions exist there, and
+don't run the script.
 
 ```bash
 bash .claude/skills/nifi-upgrade-skill/scripts/getFilesFromDocker.sh <CURRENT> <TARGET>
@@ -86,7 +86,7 @@ grep -rn '<term>' \
   qubership-bundle/ qubership-nifi-db-bundle/ qubership-nifi-bulk-redis-service/ \
   qubership-nifi-consul-templates/ nifi-config/ nifi-scripts/ \
   qubership-nifi-common/ qubership-nifi-bundle-common/ \
-  qubership-consul/ qubership-nifi-lookup-services/ \
+  qubership-consul/ qubership-nifi-lookup-services/ qubership-nifi-http-bundle/ \
   qubership-nifi-quarkus-consul/ qubership-services/ \
   --include='*.xml' --include='*.json' --include='*.yaml' --include='*.yml' \
   --include='*.properties' --include='*.sh' --include='*.java' 2>/dev/null | grep -v '/target/'
@@ -98,13 +98,24 @@ grep -rn '<term>' \
 ## 10. Build and test
 
 ```bash
-mvn clean install -DskipUnitTests=true -Dgpg.skip=true -q
+mvn clean install --batch-mode --no-transfer-progress -DskipUnitTests=true -Dgpg.skip=true -q
 mvn clean install --batch-mode --no-transfer-progress -Dgpg.skip=true 2>&1 | grep -E "BUILD|ERROR|FAIL|Tests run" | tail -20
 ```
 
+When `CI` is `true`, Docker is not available. Run one build with the tests, but without the tests that need Docker:
+
+```bash
+mvn clean install --batch-mode --no-transfer-progress -Dgpg.skip=true -DexcludedGroups=DockerBased 2>&1 | grep -E "BUILD|ERROR|FAIL|Tests run" | tail -20
+```
+
+The tests tagged `DockerBased` run in the CI of the pull request. Under "Tasks for the reviewer", say that this run
+did not run them.
+
 ## 11. Export & compare nifi component properties
 
-Export both versions:
+Export both versions. When `CI` is `true`, the workflow has already exported them into
+`upgrade-temp-data/nifi-property-exports/<VERSION>`, and Docker is not available: check that both directories exist,
+skip the export, and run the comparison.
 
 ```bash
 mvn exec:java --batch-mode --no-transfer-progress -q -f <PROJECT_ROOT>/pom.xml \
@@ -195,6 +206,7 @@ Versions to substitute:
   `QUBERSHIP_NIFI_VERSION` environment variable. When the variable is empty, as in a local run, ask the user for it.
   Don't proceed without it.
 - `<nifi.version>` - the target Apache NiFi version (`<TARGET>` from step 1).
+- `<previous-nifi.version>` - the current Apache NiFi version (`<CURRENT>` from step 1).
 - `<nifi-api.version>` - the `nifi-api.version` property set in `./pom.xml` in step 8.
 
 Steps:
@@ -204,8 +216,8 @@ Steps:
 2. Copy `upgrade-temp-data/nifi-property-comparison/NiFiComponentsDelta.md` (produced in
    steps 11-12) to
    `upgrade-temp-data/releases-notes/Apache-NiFi-<nifi.version>-Component-Properties-Delta.md`.
-3. In both files, replace `<qubership-nifi.version>`, `<nifi-api.version>` and
-   `<nifi.version>` with their values.
+3. In both files, replace `<qubership-nifi.version>`, `<previous-nifi.version>`,
+   `<nifi-api.version>` and `<nifi.version>` with their values.
 4. Verify no placeholder is left: `grep -rn '<[a-z-]*\.version>' upgrade-temp-data/releases-notes/`
    must return nothing.
 

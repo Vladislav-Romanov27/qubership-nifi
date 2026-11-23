@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.qubership.cloud.nifi.config.LogbackConfigParser;
 import org.slf4j.Logger;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 @QuarkusTest
 @QuarkusTestResource(ConsulTestResource.class)
 @TestProfile(PropertiesManagerTestProfile.class)
+@Tag("DockerBased")
 public class PropertiesManagerTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(PropertiesManagerTest.class);

@@ -3,6 +3,7 @@ package org.qubership.cloud.nifi.config;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ import java.nio.file.Paths;
 @SpringBootTest(classes = {NifiPropertiesLookup.class})
 @ImportAutoConfiguration(classes = {RefreshAutoConfiguration.class, ConsulConfigAutoConfiguration.class})
 @ActiveProfiles("test")
+@Tag("DockerBased")
 public class NifiPropertiesLookupTest {
     private static final String CONSUL_IMAGE = "hashicorp/consul:1.20";
     private static final Logger LOG = LoggerFactory.getLogger(NifiPropertiesLookupTest.class);
