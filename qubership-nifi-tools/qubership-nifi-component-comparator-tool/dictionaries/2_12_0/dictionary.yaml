@@ -1,0 +1,3 @@
+propertiesAllowedToDelete:
+  - AvroSchemaRegistry:
+    - Validate Field Names

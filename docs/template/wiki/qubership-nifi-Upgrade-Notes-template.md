@@ -9,7 +9,7 @@ Refer to recommendations provided on the page [Updating Custom Components to new
 ## Property changes in Apache NiFi components
 
 Apache NiFi <nifi-api.version> brings changes for properties in multiple components.
-Full list of changes compared with Apache NiFi <nifi.version> is available on [Apache NiFi <nifi-api.version> Component Properties Delta](https://github.com/Netcracker/qubership-nifi/wiki/Apache-NiFi-<nifi.version>-Component-Properties-Delta) page.
+Full list of changes compared with Apache NiFi <previous-nifi.version> is available on [Apache NiFi <nifi-api.version> Component Properties Delta](https://github.com/Netcracker/qubership-nifi/wiki/Apache-NiFi-<nifi.version>-Component-Properties-Delta) page.
 
 NiFi components modified by these changes contain `migrateProperties` method, which can handle migration from old properties to new.
 When importing versioned flow from Registry or uploading process group via upload API (`/nifi-api/process-groups/{pgId}/process-groups/upload`) or UI, `migrateProperties` is automatically applied making process group configuration valid, but creating local changes for versioned process groups.
