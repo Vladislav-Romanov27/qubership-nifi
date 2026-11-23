@@ -135,12 +135,15 @@ jobs:
           REPORT_FILE: upgrade-temp-data/pr-body.md
         run: |
           export CI=true AGENT_PATH="$JAVA_HOME/bin:/usr/local/bin:/usr/bin:/bin"
-          # --preserve-env with a list passes only these variables, through the environment: a value on the sudo
+          # --preserve-env with a list passes these variables through the environment: a value on the sudo
           # command line shows in ps to every user while sudo runs. sudo replaces PATH with secure_path, so
-          # AGENT_PATH carries it.
+          # AGENT_PATH carries it. XDG_CONFIG_HOME of the runner still reaches the agent and points into
+          # /home/runner, which nifi-agent cannot write, so the XDG directories are set to its own home.
           sudo -u nifi-agent -H \
             --preserve-env=CI,JAVA_HOME,AGENT_PATH,NIFI_VERSION,NIFI_DIGEST,REPORT_FILE,GITHUB_ACTOR,GITHUB_TOKEN,OPENCODE_API_KEY \
-            bash -c 'export PATH="$AGENT_PATH"; cd ~/repo && exec bash .github/workflows/sh/nifi-upgrade-agent.sh'
+            bash -c 'export PATH="$AGENT_PATH" XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share" \
+                XDG_CACHE_HOME="$HOME/.cache" XDG_STATE_HOME="$HOME/.local/state"
+              cd ~/repo && exec bash .github/workflows/sh/nifi-upgrade-agent.sh'
 
       - name: Copy the changes of the agent back
         if: ${{ always() }}
