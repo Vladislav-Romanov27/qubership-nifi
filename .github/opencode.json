@@ -1,4 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/deepseek-v4.1-flash-free"
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "permission": {
+    "bash": {
+      "sudo *": "deny",
+      "su *": "deny",
+      "docker *": "deny",
+      "podman *": "deny",
+      "git commit *": "deny",
+      "git push *": "deny",
+      "git switch *": "deny",
+      "git checkout -b *": "deny",
+      "git reset *": "deny",
+      "git rebase *": "deny"
+    }
+  }
 }
