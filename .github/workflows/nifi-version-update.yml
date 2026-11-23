@@ -111,7 +111,18 @@ jobs:
           sudo install -d -m 700 /home/nifi-agent/.m2
           sudo cp ~/.m2/settings.xml /home/nifi-agent/.m2/settings.xml
           sudo cp -a ~/.m2/repository /home/nifi-agent/.m2/repository
-          sudo chown -R nifi-agent:nifi-agent /home/nifi-agent/repo /home/nifi-agent/.m2
+          # The "Known issues analysis" step of the skill runs the nifi-jira-issue-analyst subagent from
+          # .claude/agents/, which opencode does not read. opencode also rejects that header: its tools field is an
+          # object. The agent gets the same text with an opencode header that allows only the read tool.
+          AGENT_DIR=/home/nifi-agent/.config/opencode/agent
+          sudo install -d "$AGENT_DIR"
+          {
+            printf -- '---\ndescription: %s %s\nmode: subagent\npermission:\n  "*": deny\n  read: allow\n---\n' \
+              'Classifies Apache NiFi Jira issues from a local JSON file.' \
+              'Use only from the "Known issues analysis" step of nifi-upgrade-skill.'
+            awk 'n >= 2 { print } /^---\r?$/ { n++ }' .claude/agents/nifi-jira-issue-analyst.md
+          } | sudo tee "$AGENT_DIR/nifi-jira-issue-analyst.md" > /dev/null
+          sudo chown -R nifi-agent:nifi-agent /home/nifi-agent/repo /home/nifi-agent/.m2 /home/nifi-agent/.config
 
       - name: Check the isolation of the agent user
         run: |
