@@ -51,7 +51,9 @@ jobs:
     needs: check
     if: ${{ needs.check.outputs.version != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The agent reaches the known issues analysis after about 40 minutes, and the subagent classifies the issues
+    # in batches of 10 for up to 4 minutes each.
+    timeout-minutes: 90
     permissions:
       contents: read
     env:

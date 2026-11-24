@@ -45,21 +45,11 @@ fi
 if jq -e '.issues == []' "$ISSUES_FILE" > /dev/null; then
     echo '[]' > "$CLASSIFICATION_FILE"
 fi
-if [[ ! -f "$CLASSIFICATION_FILE" ]]; then
-    fail "Error: '${CLASSIFICATION_FILE}' not found."
-fi
-if ! jq empty "$CLASSIFICATION_FILE" > /dev/null 2>&1; then
-    fail "Error: '${CLASSIFICATION_FILE}' isn't valid JSON."
-fi
-# The file must hold exactly one JSON value, an array: a second value after it would be read as another
-# classification.
-if ! jq -es 'length == 1 and (.[0] | type == "array")' "$CLASSIFICATION_FILE" > /dev/null 2>&1; then
-    fail "Error: '${CLASSIFICATION_FILE}' must contain exactly one top-level JSON array."
-fi
 
-# The classification comes from a subagent that read untrusted issue text. Accept only the fixed values, and report
-# a problem by the key or the position of the entry, never by its content.
-PROBLEMS=$(jq -r --slurpfile jira "$ISSUES_FILE" '
+# Checks a classification against the search result in $jira and prints one line per problem. The classification
+# comes from a subagent that read untrusted issue text. Accept only the fixed values, and report a problem by the key
+# or the position of the entry, never by its content.
+CHECK='
     def is_key: type == "string" and test("^NIFI-[0-9]+$");
     ($jira[0].issues | map(.key)) as $keys
     | $jira[0].keywords as $keywords
@@ -86,7 +76,53 @@ PROBLEMS=$(jq -r --slurpfile jira "$ISSUES_FILE" '
     (map(.key?) | group_by(.) | map(select(length > 1) | .[0]) | .[]
         | "\(if is_key then . else "an entry" end): classified more than once"),
     (($keys - map(.key?)) | .[] | "\(.): not classified")
-' "$CLASSIFICATION_FILE")
+'
+
+# searchJiraIssues.sh splits the issues into batches, and the subagent classifies each batch into its own file. Check
+# the classification of each batch against the issues of that batch, then join them into CLASSIFICATION_FILE.
+BATCH_DIR="${DIR}/batches"
+BATCH_FILES=()
+n=1
+while [[ -f "${BATCH_DIR}/jira-issues-${TARGET}-${n}.json" ]]; do
+    BATCH_FILES+=("${BATCH_DIR}/jira-issues-${TARGET}-${n}.json")
+    n=$((n + 1))
+done
+if (( ${#BATCH_FILES[@]} > 0 )); then
+    if [[ "$(jq -c '[.issues[].key]' "$ISSUES_FILE")" != "$(jq -sc '[.[].issues[].key]' "${BATCH_FILES[@]}")" ]]; then
+        message="Error: the batches in '${BATCH_DIR}' don't hold the issues of '${ISSUES_FILE}'."
+        fail "${message} Run searchJiraIssues.sh again."
+    fi
+    PROBLEMS=""
+    for batch in "${BATCH_FILES[@]}"; do
+        cls="${batch/jira-issues-/classification-}"
+        name=$(basename "$cls")
+        if [[ ! -f "$cls" ]]; then
+            PROBLEMS+="${name}: not found"$'\n'
+        elif ! jq -es 'length == 1 and (.[0] | type == "array")' "$cls" > /dev/null 2>&1; then
+            PROBLEMS+="${name}: must contain exactly one top-level JSON array"$'\n'
+        else
+            found=$(jq -r --slurpfile jira "$batch" "$CHECK" "$cls" | sed "s|^|${name}: |")
+            [[ -z "$found" ]] || PROBLEMS+="${found}"$'\n'
+        fi
+    done
+    if [[ -n "$PROBLEMS" ]]; then
+        fail "Error: the classifications of the batches have problems:"$'\n'"${PROBLEMS%$'\n'}"
+    fi
+    jq -s 'add' "${BATCH_FILES[@]/jira-issues-/classification-}" > "$CLASSIFICATION_FILE"
+fi
+
+if [[ ! -f "$CLASSIFICATION_FILE" ]]; then
+    fail "Error: '${CLASSIFICATION_FILE}' not found."
+fi
+if ! jq empty "$CLASSIFICATION_FILE" > /dev/null 2>&1; then
+    fail "Error: '${CLASSIFICATION_FILE}' isn't valid JSON."
+fi
+# The file must hold exactly one JSON value, an array: a second value after it would be read as another
+# classification.
+if ! jq -es 'length == 1 and (.[0] | type == "array")' "$CLASSIFICATION_FILE" > /dev/null 2>&1; then
+    fail "Error: '${CLASSIFICATION_FILE}' must contain exactly one top-level JSON array."
+fi
+PROBLEMS=$(jq -r --slurpfile jira "$ISSUES_FILE" "$CHECK" "$CLASSIFICATION_FILE")
 if [[ -n "$PROBLEMS" ]]; then
     fail "Error: the classification in ${CLASSIFICATION_FILE} has problems:"$'\n'"${PROBLEMS}"
 fi

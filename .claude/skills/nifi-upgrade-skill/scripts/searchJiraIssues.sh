@@ -2,7 +2,8 @@
 # Searches the Apache NiFi Jira for Blocker, Critical, and Major bugs that match the known-issues keywords and affect
 # the target NiFi version, or are still open and affect a version from the current one to the target one.
 # Replaces each duplicate with its original and writes the result to
-# upgrade-temp-data/known-issues/jira-issues-<version>.json.
+# upgrade-temp-data/known-issues/jira-issues-<version>.json, and the same issues in batches of JIRA_BATCH_SIZE, 10 by
+# default, to upgrade-temp-data/known-issues/batches/jira-issues-<version>-<n>.json.
 set -Eeuo pipefail
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <current_nifi_version> <target_nifi_version>"
@@ -15,12 +16,14 @@ EXPORT_DIR="upgrade-temp-data/nifi-property-exports/${TARGET}"
 OUT_DIR="upgrade-temp-data/known-issues"
 OUT_FILE="${OUT_DIR}/jira-issues-${TARGET}.json"
 REPORT_FILE="${OUT_DIR}/known-issues-${TARGET}.md"
+BATCH_DIR="${OUT_DIR}/batches"
 SEARCH_URL="https://issues.apache.org/jira/rest/api/2/search"
 # One keyword per line.
 KEYWORDS_FILE="$(dirname "${BASH_SOURCE[0]}")/../conf/known-issues-keywords.txt"
 NL=$'\n'
-# A report left by an earlier run must not pass for the result of this one.
+# A report or batches left by an earlier run must not pass for the result of this one.
 rm -f "$REPORT_FILE"
+rm -rf "$BATCH_DIR"
 
 # Prints the error message $1, writes it to the known-issues report in place of the issue table, and exits with an
 # error.
@@ -45,6 +48,8 @@ positive_int_env() {
 PAGE_SIZE=$(positive_int_env JIRA_PAGE_SIZE 100)
 # Timeout of one Jira request, in seconds.
 TIMEOUT=$(positive_int_env JIRA_TIMEOUT 30)
+# Number of issues in one batch for the subagent.
+BATCH_SIZE=$(positive_int_env JIRA_BATCH_SIZE 10)
 
 if [[ ! -f "$KEYWORDS_FILE" ]]; then
     fail "Error: keyword file '${KEYWORDS_FILE}' not found."
@@ -181,7 +186,22 @@ jq -s "$DUPLICATE_LINK_DEFS"'
 ' --arg date "$(date -u +%Y-%m-%d)" --arg jql "$JQL" --arg keywords "$KEYWORDS" --argjson not_a_bug "[${NOT_A_BUG}]" \
     "$ISSUES_FILE" > "$OUT_FILE"
 
+# The subagent classifies the issues batch by batch: a free model rejects a request that holds all the issues, or
+# answers it after many minutes with an empty result. A batch keeps the fields of the search result, with its own
+# issues and the duplicates that they replace.
+BATCH_COUNT=$(jq --argjson size "$BATCH_SIZE" '(.total + $size - 1) / $size | floor' "$OUT_FILE")
+for ((n = 1; n <= BATCH_COUNT; n++)); do
+    mkdir -p "$BATCH_DIR"
+    jq --argjson size "$BATCH_SIZE" --argjson n "$n" '
+        .issues[($n - 1) * $size:$n * $size] as $issues
+        | ($issues | map(.key)) as $keys
+        | . + {total: ($issues | length), issues: $issues,
+               duplicates: [.duplicates[] | select(.original as $o | $keys | index($o) != null)]}' \
+        "$OUT_FILE" > "${BATCH_DIR}/jira-issues-${TARGET}-${n}.json"
+done
+
 jq -r '"Duplicates replaced by their originals: \(.duplicates | length)",
     (.duplicates[] | "  \(.key) -> \(.original)"), "Issues to analyze: \(.total)"' "$OUT_FILE"
 echo "Search terms: $(wc -l <<< "$TERMS")"
 echo "Saved to ${OUT_FILE}"
+echo "Batches of up to ${BATCH_SIZE} issues: ${BATCH_COUNT}, saved to ${BATCH_DIR}/jira-issues-${TARGET}-<n>.json"
