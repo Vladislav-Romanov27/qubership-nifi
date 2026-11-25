@@ -141,9 +141,7 @@ EOF
 )
 
 RUN_STATUS=0
-# opencode run prints only the tool calls of the main agent, so a running subagent shows nothing until it ends.
-# The logs on stderr show the model requests, retries, and tool calls of every session, subagents included.
-opencode run --auto --print-logs --log-level INFO "$PROMPT" || RUN_STATUS=$?
+opencode run --auto "$PROMPT" || RUN_STATUS=$?
 
 if [ ! -s "$REPORT_FILE" ]; then
     echo "::warning::The agent did not write the report to $REPORT_FILE."
