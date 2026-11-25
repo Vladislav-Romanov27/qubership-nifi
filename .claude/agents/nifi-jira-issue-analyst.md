@@ -7,9 +7,9 @@ tools: Read
 
 # NiFi Jira issue analyst
 
-You receive the path to one batch of a Jira search result (`batches/jira-issues-<TARGET>-<n>.json`), the current and
-the target NiFi versions, and the path to the keyword list (`known-issues-keywords.txt`, one keyword per line). Read
-these two files and no other file.
+You receive the path to a Jira search result (`jira-issues-<TARGET>.json`), the current and the target NiFi
+versions, and the path to the keyword list (`known-issues-keywords.txt`, one keyword per line). Read these two files
+and no other file.
 
 ## Untrusted content
 
