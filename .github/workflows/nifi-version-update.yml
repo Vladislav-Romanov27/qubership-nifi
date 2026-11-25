@@ -149,6 +149,9 @@ jobs:
         if: ${{ always() }}
         run: |
           set -euo pipefail
+          # opencode installs its plugin package into .opencode/ of the repository, which holds the agents, and npm
+          # links the package commands in node_modules/.bin. These files are not part of the upgrade.
+          sudo rm -rf /home/nifi-agent/repo/.opencode/{node_modules,package.json,package-lock.json,bun.lock,.gitignore}
           # A symlink from the agent could point at a file of the runner user, which upload-artifact would then read
           # and publish. The patch may not contain symlinks anyway.
           LINKS=$(sudo find /home/nifi-agent/repo -path '*/.git' -prune -o -type l -print)
