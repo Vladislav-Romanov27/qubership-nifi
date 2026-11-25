@@ -200,10 +200,5 @@ class RedisBulkDistributedMapCacheClientServiceMockTest {
         public RedisType getRedisType() {
             return RedisType.STANDALONE;
         }
-
-        @Override
-        public String getConnectionString() {
-            return "localhost:6379";
-        }
     }
 }
